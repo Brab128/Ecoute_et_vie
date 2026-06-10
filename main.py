@@ -3,29 +3,18 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import requests
 import io
-from shapely.geometry import shape
 
 app = FastAPI()
 
 @app.get("/carte/{code}")
 def carte(code: str, couleur: str = "#4A90D9"):
-    data = requests.get(
-        "https://geo.api.gouv.fr/departements?fields=contour,code,nom"
-    ).json()
+    # URL corrigée : format GeoJSON avec géométrie incluse
+    url = "https://geo.api.gouv.fr/departements?fields=nom,code&geometry=contour&format=geojson"
+    geojson = requests.get(url).json()
 
-    rows = []
-    for d in data:
-        if "contour" in d:
-            rows.append({
-                "code": d["code"],
-                "nom": d.get("nom", ""),
-                "geometry": shape(d["contour"])
-            })
+    gdf = gpd.GeoDataFrame.from_features(geojson["features"])
+    gdf = gdf.set_crs("EPSG:4326")
 
-    if not rows:
-        return {"error": "Aucune donnée reçue"}
-
-    gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
     dep = gdf[gdf["code"] == code]
 
     if dep.empty:
