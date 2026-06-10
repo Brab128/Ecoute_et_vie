@@ -1,27 +1,36 @@
 from fastapi import FastAPI, Response
+from pydantic import BaseModel
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import requests
 import io
+from shapely.geometry import shape
 
 app = FastAPI()
 
-@app.get("/carte/{code}")
-def carte(code: str, couleur: str = "#4A90D9"):
-    # URL corrigée : format GeoJSON avec géométrie incluse
-    url = "https://geo.api.gouv.fr/departements?fields=nom,code&geometry=contour&format=geojson"
-    geojson = requests.get(url).json()
+class CarteRequest(BaseModel):
+    geojson: dict          # Le GeoJSON envoyé par n8n
+    couleur: str = "#4A90D9"
+    largeur: int = 6
+    hauteur: int = 6
 
-    gdf = gpd.GeoDataFrame.from_features(geojson["features"])
+@app.post("/carte")
+def carte(req: CarteRequest):
+    # Accepte FeatureCollection ou Feature unique
+    geojson = req.geojson
+
+    if geojson.get("type") == "FeatureCollection":
+        features = geojson["features"]
+    elif geojson.get("type") == "Feature":
+        features = [geojson]
+    else:
+        # Géométrie brute
+        features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
+
+    gdf = gpd.GeoDataFrame.from_features(features)
     gdf = gdf.set_crs("EPSG:4326")
 
-    dep = gdf[gdf["code"] == code]
-
-    if dep.empty:
-        return {"error": f"Département {code} non trouvé"}
-
-    fig, ax = plt.subplots(figsize=(6, 6))
-    dep.plot(ax=ax, color=couleur, edgecolor="white")
+    fig, ax = plt.subplots(figsize=(req.largeur, req.hauteur))
+    gdf.plot(ax=ax, color=req.couleur, edgecolor="white")
     ax.axis("off")
 
     buf = io.BytesIO()
