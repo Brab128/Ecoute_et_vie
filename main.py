@@ -27,15 +27,36 @@ class CarteEntites(BaseModel):
     couleur: str = "#4A90D9"
     largeur: int = 6
     hauteur: int = 6
-
+    
+class CarteEntites(BaseModel):
+    entites: List[Entite]
+    couleur: str = "#4A90D9"        # couleur de remplissage
+    couleur_contour: str = "black"  # couleur du contour
+    epaisseur_contour: float = 1.0  # épaisseur du trait
+    remplissage: bool = True        # False = contours seuls
+    fond: str = "white"             # couleur du fond
+    largeur: int = 6
+    hauteur: int = 6
+    dpi: int = 150
 # --- Helper commun ---
 
-def render_gdf(gdf, couleur, largeur, hauteur):
-    fig, ax = plt.subplots(figsize=(largeur, hauteur))
-    gdf.plot(ax=ax, color=couleur, edgecolor="white")
+def render_gdf(gdf, req):
+    fig, ax = plt.subplots(figsize=(req.largeur, req.hauteur))
+    fig.patch.set_facecolor(req.fond)
+    
+    facecolor = req.couleur if req.remplissage else "none"
+    
+    gdf.plot(
+        ax=ax,
+        color=facecolor,
+        edgecolor=req.couleur_contour,
+        linewidth=req.epaisseur_contour
+    )
     ax.axis("off")
+    ax.set_facecolor(req.fond)
+    
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=req.dpi, facecolor=req.fond)
     plt.close()
     return Response(content=buf.getvalue(), media_type="image/png")
 
