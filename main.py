@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Response
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import requests
@@ -11,12 +11,6 @@ app = FastAPI()
 
 # --- Modèles ---
 
-class CarteGeoJSON(BaseModel):
-    geojson: dict
-    couleur: str = "#4A90D9"
-    largeur: int = 6
-    hauteur: int = 6
-
 class Entite(BaseModel):
     code: str
     nom: str = ""
@@ -25,42 +19,60 @@ class Entite(BaseModel):
 class CarteEntites(BaseModel):
     entites: List[Entite]
     couleur: str = "#4A90D9"
-    largeur: int = 6
-    hauteur: int = 6
-    
-class CarteEntites(BaseModel):
-    entites: List[Entite]
-    couleur: str = "#4A90D9"        # couleur de remplissage
-    couleur_contour: str = "black"  # couleur du contour
-    epaisseur_contour: float = 1.0  # épaisseur du trait
-    remplissage: bool = True        # False = contours seuls
-    fond: str = "white"             # couleur du fond
+    couleur_contour: str = "black"
+    epaisseur_contour: float = 1.0
+    remplissage: bool = True
+    fond: str = "white"
     largeur: int = 6
     hauteur: int = 6
     dpi: int = 150
+
+class CarteGeoJSON(BaseModel):
+    geojson: dict
+    couleur: str = "#4A90D9"
+    couleur_contour: str = "black"
+    epaisseur_contour: float = 1.0
+    remplissage: bool = True
+    fond: str = "white"
+    largeur: int = 6
+    hauteur: int = 6
+    dpi: int = 150
+
 # --- Helper commun ---
 
-def render_gdf(gdf, req):
-    fig, ax = plt.subplots(figsize=(req.largeur, req.hauteur))
-    fig.patch.set_facecolor(req.fond)
-    
-    facecolor = req.couleur if req.remplissage else "none"
-    
+def render_gdf(gdf, couleur, couleur_contour, epaisseur_contour, remplissage, fond, largeur, hauteur, dpi):
+    fig, ax = plt.subplots(figsize=(largeur, hauteur))
+    fig.patch.set_facecolor(fond)
+    ax.set_facecolor(fond)
+
+    facecolor = couleur if remplissage else "none"
+
     gdf.plot(
         ax=ax,
         color=facecolor,
-        edgecolor=req.couleur_contour,
-        linewidth=req.epaisseur_contour
+        edgecolor=couleur_contour,
+        linewidth=epaisseur_contour
     )
     ax.axis("off")
-    ax.set_facecolor(req.fond)
-    
+
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", dpi=req.dpi, facecolor=req.fond)
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=dpi, facecolor=fond)
     plt.close()
     return Response(content=buf.getvalue(), media_type="image/png")
 
-# --- Endpoint 1 : GeoJSON brut ---
+# --- Endpoint 1 : liste d'entités (depuis n8n) ---
+
+@app.post("/carte/entites")
+def carte_entites(req: CarteEntites):
+    rows = [
+        {"code": e.code, "nom": e.nom, "geometry": shape(e.contour)}
+        for e in req.entites
+    ]
+    gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
+    return render_gdf(gdf, req.couleur, req.couleur_contour, req.epaisseur_contour,
+                      req.remplissage, req.fond, req.largeur, req.hauteur, req.dpi)
+
+# --- Endpoint 2 : GeoJSON brut ---
 
 @app.post("/carte")
 def carte_geojson(req: CarteGeoJSON):
@@ -72,23 +84,14 @@ def carte_geojson(req: CarteGeoJSON):
     else:
         features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
     gdf = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326")
-    return render_gdf(gdf, req.couleur, req.largeur, req.hauteur)
+    return render_gdf(gdf, req.couleur, req.couleur_contour, req.epaisseur_contour,
+                      req.remplissage, req.fond, req.largeur, req.hauteur, req.dpi)
 
-# --- Endpoint 2 : liste d'entités avec contour ---
-
-@app.post("/carte/entites")
-def carte_entites(req: CarteEntites):
-    rows = [
-        {"code": e.code, "nom": e.nom, "geometry": shape(e.contour)}
-        for e in req.entites
-    ]
-    gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
-    return render_gdf(gdf, req.couleur, req.largeur, req.hauteur)
-
-# --- Endpoint 3 : par code département (GET) ---
+# --- Endpoint 3 : département par code INSEE (GET) ---
 
 @app.get("/carte/{code}")
-def carte_departement(code: str, couleur: str = "#4A90D9"):
+def carte_departement(code: str, couleur: str = "#4A90D9", couleur_contour: str = "black",
+                      epaisseur_contour: float = 1.0, remplissage: bool = True, fond: str = "white"):
     data = requests.get(
         "https://geo.api.gouv.fr/departements?fields=nom,code&geometry=contour"
     ).json()
@@ -100,4 +103,4 @@ def carte_departement(code: str, couleur: str = "#4A90D9"):
     dep = gdf[gdf["code"] == code]
     if dep.empty:
         return {"error": f"Département {code} non trouvé"}
-    return render_gdf(dep, couleur, 6, 6)
+    return render_gdf(dep, couleur, couleur_contour, epaisseur_contour, remplissage, fond, 6, 6, 150)
