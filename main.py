@@ -22,7 +22,10 @@ def carte(code: str, couleur: str = "#4A90D9"):
                 "geometry": shape(d["contour"])
             })
 
-    gdf = gpd.GeoDataFrame(rows, crs="EPSG:4326")
+    if not rows:
+        return {"error": "Aucune donnée reçue"}
+
+    gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
     dep = gdf[gdf["code"] == code]
 
     if dep.empty:
