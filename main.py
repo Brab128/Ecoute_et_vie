@@ -16,10 +16,26 @@ class Entite(BaseModel):
     nom: str = ""
     contour: dict
 
+class Marqueur(BaseModel):
+    longitude: float
+    latitude: float
+    icone: str = "📍"
+    texte: str = ""
+    taille: int = 16
+    couleur_texte: str = "black"
+
+class MarqueurEtab(BaseModel):
+    longitude: float
+    latitude: float
+    icone: str = "★"
+    texte: str = ""
+    taille: int = 16
+    couleur_texte: str = "black"
+
 class CarteEntites(BaseModel):
     entites: List[Entite]
-    marqueurs: List[Marqueur] = [] 
-    marqueursetab: List[MarqueurEtab] = [] 
+    marqueurs: List[Marqueur] = []
+    marqueurs_etab: List[MarqueurEtab] = []
     couleur: str = "#4A90D9"
     couleur_contour: str = "black"
     epaisseur_contour: float = 1.0
@@ -31,6 +47,8 @@ class CarteEntites(BaseModel):
 
 class CarteGeoJSON(BaseModel):
     geojson: dict
+    marqueurs: List[Marqueur] = []
+    marqueurs_etab: List[MarqueurEtab] = []
     couleur: str = "#4A90D9"
     couleur_contour: str = "black"
     epaisseur_contour: float = 1.0
@@ -40,51 +58,28 @@ class CarteGeoJSON(BaseModel):
     hauteur: int = 6
     dpi: int = 150
 
-class Marqueur(BaseModel):
-    longitude: float
-    latitude: float
-    icone: str = "📍"       # emoji ou caractère
-    texte: str = ""
-    taille: int = 16        # taille de l'icône
-    couleur_texte: str = "black"
-    
-class MarqueurEtab (BaseModel):
-    longitude: float
-    latitude: float
-    icone: str = " * "       # emoji ou caractère
-    texte: str = ""
-    taille: int = 16        # taille de l'icône
-    couleur_texte: str = "black"
-
 # --- Helper commun ---
 
-def render_gdf(gdf, couleur, couleur_contour, epaisseur_contour, remplissage, fond, largeur, hauteur, dpi, marqueurs, marqueursetab):
+def render_gdf(gdf, marqueurs, marqueurs_etab, couleur, couleur_contour,
+               epaisseur_contour, remplissage, fond, largeur, hauteur, dpi):
     fig, ax = plt.subplots(figsize=(largeur, hauteur))
     fig.patch.set_facecolor(fond)
     ax.set_facecolor(fond)
 
     facecolor = couleur if remplissage else "none"
+    gdf.plot(ax=ax, color=facecolor, edgecolor=couleur_contour, linewidth=epaisseur_contour)
 
-    gdf.plot(
-        ax=ax,
-        color=facecolor,
-        edgecolor=couleur_contour,
-        linewidth=epaisseur_contour
-    )
+    for m in list(marqueurs) + list(marqueurs_etab):
+        ax.annotate(
+            text=f"{m.icone} {m.texte}".strip(),
+            xy=(m.longitude, m.latitude),
+            fontsize=m.taille,
+            color=m.couleur_texte,
+            ha="center",
+            va="bottom"
+        )
 
-    for m in marqueurs:
-    ax.annotate(
-        text=f"{m.icone} {m.texte}".strip(),
-        xy=(m.longitude, m.latitude),
-        fontsize=m.taille,
-        color=m.couleur_texte,
-        ha="center",
-        va="bottom",
-        fontfamily="DejaVu Sans"
-    )
-    
     ax.axis("off")
-
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight", dpi=dpi, facecolor=fond)
     plt.close()
@@ -99,8 +94,9 @@ def carte_entites(req: CarteEntites):
         for e in req.entites
     ]
     gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
-    return render_gdf(gdf, req.couleur, req.couleur_contour, req.epaisseur_contour,
-                      req.remplissage, req.fond, req.largeur, req.hauteur, req.dpi)
+    return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
+                      req.couleur_contour, req.epaisseur_contour, req.remplissage,
+                      req.fond, req.largeur, req.hauteur, req.dpi)
 
 # --- Endpoint 2 : GeoJSON brut ---
 
@@ -114,8 +110,9 @@ def carte_geojson(req: CarteGeoJSON):
     else:
         features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
     gdf = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326")
-    return render_gdf(gdf, req.couleur, req.couleur_contour, req.epaisseur_contour,
-                      req.remplissage, req.fond, req.largeur, req.hauteur, req.dpi)
+    return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
+                      req.couleur_contour, req.epaisseur_contour, req.remplissage,
+                      req.fond, req.largeur, req.hauteur, req.dpi)
 
 # --- Endpoint 3 : département par code INSEE (GET) ---
 
@@ -133,4 +130,5 @@ def carte_departement(code: str, couleur: str = "#4A90D9", couleur_contour: str 
     dep = gdf[gdf["code"] == code]
     if dep.empty:
         return {"error": f"Département {code} non trouvé"}
-    return render_gdf(dep, couleur, couleur_contour, epaisseur_contour, remplissage, fond, 6, 6, 150)
+    return render_gdf(dep, [], [], couleur, couleur_contour, epaisseur_contour,
+                      remplissage, fond, 6, 6, 150)
