@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import requests
 import io
 from shapely.geometry import shape
+import matplotlib.font_manager as fm
+fm.fontManager.addfont("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf")
 
 app = FastAPI()
 
