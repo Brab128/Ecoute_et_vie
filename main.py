@@ -19,7 +19,7 @@ class Entite(BaseModel):
 class Marqueur(BaseModel):
     longitude: float
     latitude: float
-    icone: str = "📍"
+    icone: str = "●"
     texte: str = ""
     taille: int = 16
     couleur_texte: str = "black"
@@ -27,10 +27,10 @@ class Marqueur(BaseModel):
 class MarqueurEtab(BaseModel):
     longitude: float
     latitude: float
-    icone: str = "★"
+    icone: str = "▲"
     texte: str = ""
     taille: int = 16
-    couleur_texte: str = "black"
+    couleur_texte: str = "red"
 
 class CarteEntites(BaseModel):
     entites: List[Entite]
