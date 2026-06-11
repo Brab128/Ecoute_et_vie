@@ -18,6 +18,8 @@ class Entite(BaseModel):
 
 class CarteEntites(BaseModel):
     entites: List[Entite]
+    marqueurs: List[Marqueur] = [] 
+    marqueursetab: List[MarqueurEtab] = [] 
     couleur: str = "#4A90D9"
     couleur_contour: str = "black"
     epaisseur_contour: float = 1.0
@@ -38,9 +40,25 @@ class CarteGeoJSON(BaseModel):
     hauteur: int = 6
     dpi: int = 150
 
+class Marqueur(BaseModel):
+    longitude: float
+    latitude: float
+    icone: str = "📍"       # emoji ou caractère
+    texte: str = ""
+    taille: int = 16        # taille de l'icône
+    couleur_texte: str = "black"
+    
+class MarqueurEtab (BaseModel):
+    longitude: float
+    latitude: float
+    icone: str = " * "       # emoji ou caractère
+    texte: str = ""
+    taille: int = 16        # taille de l'icône
+    couleur_texte: str = "black"
+
 # --- Helper commun ---
 
-def render_gdf(gdf, couleur, couleur_contour, epaisseur_contour, remplissage, fond, largeur, hauteur, dpi):
+def render_gdf(gdf, couleur, couleur_contour, epaisseur_contour, remplissage, fond, largeur, hauteur, dpi, marqueurs, marqueursetab):
     fig, ax = plt.subplots(figsize=(largeur, hauteur))
     fig.patch.set_facecolor(fond)
     ax.set_facecolor(fond)
@@ -53,6 +71,18 @@ def render_gdf(gdf, couleur, couleur_contour, epaisseur_contour, remplissage, fo
         edgecolor=couleur_contour,
         linewidth=epaisseur_contour
     )
+
+    for m in marqueurs:
+    ax.annotate(
+        text=f"{m.icone} {m.texte}".strip(),
+        xy=(m.longitude, m.latitude),
+        fontsize=m.taille,
+        color=m.couleur_texte,
+        ha="center",
+        va="bottom",
+        fontfamily="DejaVu Sans"
+    )
+    
     ax.axis("off")
 
     buf = io.BytesIO()
