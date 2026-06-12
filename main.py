@@ -140,7 +140,7 @@ def carte_entites(req: CarteEntites):
         for e in req.entites
     ]
     gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
-    footer = build_footer(req.nom, req.entreprise, req.date, req.nb_habitants)
+    footer = build_footer(req.entreprise, req.nom, req.date, req.nb_habitants)
     return render_gdf(
         gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
         req.couleur_contour, req.epaisseur_contour, req.remplissage,
@@ -160,7 +160,7 @@ def carte_geojson(req: CarteGeoJSON):
     else:
         features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
     gdf = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326")
-    footer = build_footer(req.nom, req.entreprise, req.date, req.nb_habitants)
+    footer = build_footer(req.entreprise, req.nom, req.date, req.nb_habitants)
     return render_gdf(
         gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
         req.couleur_contour, req.epaisseur_contour, req.remplissage,
