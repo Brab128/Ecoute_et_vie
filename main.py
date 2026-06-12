@@ -44,6 +44,10 @@ class CarteEntites(BaseModel):
     largeur: int = 6
     hauteur: int = 6
     dpi: int = 150
+    nom: str = ""
+    entreprise: str = ""
+    date: str = ""
+    nb_habitants: int = 0
 
 class CarteGeoJSON(BaseModel):
     geojson: dict
@@ -57,11 +61,17 @@ class CarteGeoJSON(BaseModel):
     largeur: int = 6
     hauteur: int = 6
     dpi: int = 150
+    nom: str = ""
+    entreprise: str = ""
+    date: str = ""
+    nb_habitants: int = 0
 
 # --- Helper commun ---
 
 def render_gdf(gdf, marqueurs, marqueurs_etab, couleur, couleur_contour,
-               epaisseur_contour, remplissage, fond, largeur, hauteur, dpi):
+               epaisseur_contour, remplissage, fond, largeur, hauteur, dpi,
+               footer: str = ""):
+
     fig, ax = plt.subplots(figsize=(largeur, hauteur))
     fig.patch.set_facecolor(fond)
     ax.set_facecolor(fond)
@@ -80,6 +90,20 @@ def render_gdf(gdf, marqueurs, marqueurs_etab, couleur, couleur_contour,
         )
 
     ax.axis("off")
+
+    # ✅ Footer en bas de figure
+    if footer:
+        fig.text(
+            0.5, 0.01,          # position : centré, 1% depuis le bas
+            footer,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="#444444",
+            style="italic",
+            wrap=True
+        )
+
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight", dpi=dpi, facecolor=fond)
     plt.close()
@@ -94,10 +118,19 @@ def carte_entites(req: CarteEntites):
         for e in req.entites
     ]
     gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
+
+    # Construire le texte footer
+    parties = []
+    if req.nom:         parties.append(req.nom)
+    if req.entreprise:  parties.append(req.entreprise)
+    if req.date:        parties.append(req.date)
+    if req.nb_habitants: parties.append(f"{req.nb_habitants:,} habitants".replace(",", " "))
+    footer = "  |  ".join(parties)
+
     return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
                       req.couleur_contour, req.epaisseur_contour, req.remplissage,
-                      req.fond, req.largeur, req.hauteur, req.dpi)
-
+                      req.fond, req.largeur, req.hauteur, req.dpi, footer)
+    
 # --- Endpoint 2 : GeoJSON brut ---
 
 @app.post("/carte")
