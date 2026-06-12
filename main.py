@@ -12,7 +12,7 @@ app = FastAPI()
 # --- Modèles ---
 
 class Entite(BaseModel):
-code: str
+code: str    
 nom: str = ""
 contour: dict
 
