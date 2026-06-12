@@ -70,7 +70,7 @@ class CarteGeoJSON(BaseModel):
 
 # --- Helper : construction du footer ---
 
-def build_footer(nom, entreprise, date, nb_habitants):
+def build_footer(entreprise, nom, date, nb_habitants):
     parties = []
     if entreprise:
     parties.append(entreprise)
