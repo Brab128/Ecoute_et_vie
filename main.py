@@ -12,104 +12,226 @@ app = FastAPI()
 # --- Modèles ---
 
 class Entite(BaseModel):
-    code: str
-    nom: str = ""
-    contour: dict
+code: str
+nom: str = ""
+contour: dict
 
 class Marqueur(BaseModel):
-    longitude: float
-    latitude: float
-    icone: str = "●"
-    texte: str = ""
-    taille: int = 16
-    couleur_texte: str = "black"
+longitude: float
+latitude: float
+icone: str = "●"
+texte: str = ""
+taille: int = 16
+couleur_texte: str = "black"
 
 class MarqueurEtab(BaseModel):
-    longitude: float
-    latitude: float
-    icone: str = "▲"
-    texte: str = ""
-    taille: int = 16
-    couleur_texte: str = "red"
+longitude: float
+latitude: float
+icone: str = "▲"
+texte: str = ""
+taille: int = 16
+couleur_texte: str = "red"
 
 class CarteEntites(BaseModel):
-    entites: List[Entite]
-    marqueurs: List[Marqueur] = []
-    marqueurs_etab: List[MarqueurEtab] = []
-    couleur: str = "#4A90D9"
-    couleur_contour: str = "black"
-    epaisseur_contour: float = 1.0
-    remplissage: bool = True
-    fond: str = "white"
-    largeur: int = 6
-    hauteur: int = 6
-    dpi: int = 150
-    nom: str = ""
-    entreprise: str = ""
-    date: str = ""
-    nb_habitants: int = 0
+entites: List[Entite]
+marqueurs: List[Marqueur] = []
+marqueurs_etab: List[MarqueurEtab] = []
+couleur: str = "#4A90D9"
+couleur_contour: str = "black"
+epaisseur_contour: float = 1.0
+remplissage: bool = True
+fond: str = "white"
+largeur: int = 6
+hauteur: int = 6
+dpi: int = 150
+# Header / Footer
+title: str = ""
+nom: str = ""
+entreprise: str = ""
+date: str = ""
+nb_habitants: int = 0
 
 class CarteGeoJSON(BaseModel):
-    geojson: dict
-    marqueurs: List[Marqueur] = []
-    marqueurs_etab: List[MarqueurEtab] = []
-    couleur: str = "#4A90D9"
-    couleur_contour: str = "black"
-    epaisseur_contour: float = 1.0
-    remplissage: bool = True
-    fond: str = "white"
-    largeur: int = 6
-    hauteur: int = 6
-    dpi: int = 150
-    nom: str = ""
-    entreprise: str = ""
-    date: str = ""
-    nb_habitants: int = 0
+geojson: dict
+marqueurs: List[Marqueur] = []
+marqueurs_etab: List[MarqueurEtab] = []
+couleur: str = "#4A90D9"
+couleur_contour: str = "black"
+epaisseur_contour: float = 1.0
+remplissage: bool = True
+fond: str = "white"
+largeur: int = 6
+hauteur: int = 6
+dpi: int = 150
+# Header / Footer
+title: str = ""
+nom: str = ""
+entreprise: str = ""
+date: str = ""
+nb_habitants: int = 0
 
 # --- Helper commun ---
 
 def render_gdf(gdf, marqueurs, marqueurs_etab, couleur, couleur_contour,
-               epaisseur_contour, remplissage, fond, largeur, hauteur, dpi,
-               footer: str = ""):
+epaisseur_contour, remplissage, fond, largeur, hauteur, dpi,
+title: str = "", footer: str = ""):
+fig, ax = plt.subplots(figsize=(largeur, hauteur))
+fig.patch.set_facecolor(fond)
+ax.set_facecolor(fond)
 
+facecolor = couleur if remplissage else "none"
+gdf.plot(ax=ax, color=facecolor, edgecolor=couleur_contour, linewidth=epaisseur_contour)
+
+for m in list(marqueurs) + list(marqueurs_etab):
+ax.annotate(
+text=f"{m.icone} {m.texte}".strip(),
+xy=(m.longitude, m.latitude),
+fontsize=m.taille,
+color=m.couleur_texte,
+ha="center",
+va="bottom"
+)
+
+ax.axis("off")
+
+# ✅ Header : titre de la carte
+if title:
+fig.text(
+0.5, 0.97,
+title,
+ha="center",
+va="top",
+fontsize=12,
+fontweight="bold",
+color="#222222"
+)
+
+# ✅ Footer : nom, entreprise, date, habitants
+if footer:
+fig.text(
+0.5, 0.01,
+footer,
+ha="center",
+va="bottom",
+fontsize=8,
+color="#444444",
+style="italic"
+)
+
+buf = io.BytesIO()
+plt.savefig(buf, format="png", bbox_inches="tight", dpi=dpi, facecolor=fond)
+plt.close()
+return Response(content=buf.getvalue(), media_type="image/png")
+
+# --- Helper : construction du footer ---
+
+def build_footer(nom, entreprise, date, nb_habitants):
+parties = []
+if nom: parties.append(nom)
+if entreprise: parties.append(entreprise)
+if date: parties.append(date)
+if nb_habitants: parties.append(f"{nb_habitants:,} habitants".replace(",", " "))
+return "  |  ".join(parties)
+
+# --- Endpoint 1 : liste d'entités (depuis n8n) ---
+
+@app.post("/carte/entites")
+def carte_entites(req: CarteEntites):
+rows = [
+{"code": e.code, "nom": e.nom, "geometry": shape(e.contour)}
+for e in req.entites
+]
+gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
+footer = build_footer(req.nom, req.entreprise, req.date, req.nb_habitants)
+return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
+req.couleur_contour, req.epaisseur_contour, req.remplissage,
+req.fond, req.largeur, req.hauteur, req.dpi,
+title=req.title, footer=footer)
+
+# --- Endpoint 2 : GeoJSON brut ---
+
+@app.post("/carte")
+def carte_geojson(req: CarteGeoJSON):
+geojson = req.geojson
+if geojson.get("type") == "FeatureCollection":
+features = geojson["features"]
+elif geojson.get("type") == "Feature":
+features = [geojson]
+else:
+features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
+gdf = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326")
+footer = build_footer(req.nom, req.entreprise, req.date, req.nb_habitants)
+return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
+req.couleur_contour, req.epaisseur_contour, req.remplissage,
+req.fond, req.largeur, req.hauteur, req.dpi,
+title=req.title, footer=footer)
+
+# --- Endpoint 3 : département par code INSEE (GET) ---
+
+@app.get("/carte/{code}")
+def carte_departement(code: str, couleur: str = "#4A90D9", couleur_contour: str = "black",
+epaisseur_contour: float = 1.0, remplissage: bool = True, fond: str = "white"):
+data = requests.get(
+"https://geo.api.gouv.fr/departements?fields=nom,code&geometry=contour"
+).json()
+rows = [
+{"code": d["code"], "nom": d.get("nom", ""), "geometry": shape(d["geometry"])}
+for d in data if "geometry" in d
+]
+gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
+dep = gdf[gdf["code"] == code]
+if dep.empty:
+return {"error": f"Département {code} non trouvé"}
+return render_gdf(dep, [], [], couleur, couleur_contour, epaisseur_contour,
+remplissage, fond, 6, 6, 150)from fastapi import FastAPI, Response
+from pydantic import BaseModel
+from typing import List
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import requests
+import io
+from shapely.geometry import shape
+
+app = FastAPI()
+
+class Entite(BaseModel):
+    code: str
+    nom: str = ""
+    contour: dict
+
+class CarteEntites(BaseModel):
+    entites: List[Entite]
+    couleur: str = "#4A90D9"
+    couleur_contour: str = "black"
+    epaisseur_contour: float = 1.0
+    remplissage: bool = True
+    fond: str = "white"
+    largeur: int = 6
+    hauteur: int = 6
+    dpi: int = 150
+
+class CarteGeoJSON(BaseModel):
+    geojson: dict
+    couleur: str = "#4A90D9"
+    couleur_contour: str = "black"
+    epaisseur_contour: float = 1.0
+    remplissage: bool = True
+    fond: str = "white"
+    largeur: int = 6
+    hauteur: int = 6
+    dpi: int = 150
+
+def render_gdf(gdf, couleur, couleur_contour, epaisseur_contour, remplissage, fond, largeur, hauteur, dpi):
     fig, ax = plt.subplots(figsize=(largeur, hauteur))
     fig.patch.set_facecolor(fond)
     ax.set_facecolor(fond)
-
     facecolor = couleur if remplissage else "none"
     gdf.plot(ax=ax, color=facecolor, edgecolor=couleur_contour, linewidth=epaisseur_contour)
-
-    for m in list(marqueurs) + list(marqueurs_etab):
-        ax.annotate(
-            text=f"{m.icone} {m.texte}".strip(),
-            xy=(m.longitude, m.latitude),
-            fontsize=m.taille,
-            color=m.couleur_texte,
-            ha="center",
-            va="bottom"
-        )
-
     ax.axis("off")
-
-    # ✅ Footer en bas de figure
-    if footer:
-        fig.text(
-            0.5, 0.01,          # position : centré, 1% depuis le bas
-            footer,
-            ha="center",
-            va="bottom",
-            fontsize=8,
-            color="#444444",
-            style="italic",
-            wrap=True
-        )
-
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight", dpi=dpi, facecolor=fond)
     plt.close()
     return Response(content=buf.getvalue(), media_type="image/png")
-
-# --- Endpoint 1 : liste d'entités (depuis n8n) ---
 
 @app.post("/carte/entites")
 def carte_entites(req: CarteEntites):
@@ -118,20 +240,8 @@ def carte_entites(req: CarteEntites):
         for e in req.entites
     ]
     gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
-
-    # Construire le texte footer
-    parties = []
-    if req.nom:         parties.append(req.nom)
-    if req.entreprise:  parties.append(req.entreprise)
-    if req.date:        parties.append(req.date)
-    if req.nb_habitants: parties.append(f"{req.nb_habitants:,} habitants".replace(",", " "))
-    footer = "  |  ".join(parties)
-
-    return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
-                      req.couleur_contour, req.epaisseur_contour, req.remplissage,
-                      req.fond, req.largeur, req.hauteur, req.dpi, footer)
-    
-# --- Endpoint 2 : GeoJSON brut ---
+    return render_gdf(gdf, req.couleur, req.couleur_contour, req.epaisseur_contour,
+                      req.remplissage, req.fond, req.largeur, req.hauteur, req.dpi)
 
 @app.post("/carte")
 def carte_geojson(req: CarteGeoJSON):
@@ -143,11 +253,8 @@ def carte_geojson(req: CarteGeoJSON):
     else:
         features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
     gdf = gpd.GeoDataFrame.from_features(features).set_crs("EPSG:4326")
-    return render_gdf(gdf, req.marqueurs, req.marqueurs_etab, req.couleur,
-                      req.couleur_contour, req.epaisseur_contour, req.remplissage,
-                      req.fond, req.largeur, req.hauteur, req.dpi)
-
-# --- Endpoint 3 : département par code INSEE (GET) ---
+    return render_gdf(gdf, req.couleur, req.couleur_contour, req.epaisseur_contour,
+                      req.remplissage, req.fond, req.largeur, req.hauteur, req.dpi)
 
 @app.get("/carte/{code}")
 def carte_departement(code: str, couleur: str = "#4A90D9", couleur_contour: str = "black",
@@ -163,5 +270,4 @@ def carte_departement(code: str, couleur: str = "#4A90D9", couleur_contour: str 
     dep = gdf[gdf["code"] == code]
     if dep.empty:
         return {"error": f"Département {code} non trouvé"}
-    return render_gdf(dep, [], [], couleur, couleur_contour, epaisseur_contour,
-                      remplissage, fond, 6, 6, 150)
+    return render_gdf(dep, couleur, couleur_contour, epaisseur_contour, remplissage, fond, 6, 6, 150)
