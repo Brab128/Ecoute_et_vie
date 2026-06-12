@@ -110,7 +110,7 @@ def render_gdf(gdf, marqueurs, marqueurs_etab, couleur, couleur_contour,
         fig.text(
             0.5, 0.97, title,
             ha="center", va="top",
-            fontsize=12, fontweight="bold", color="#222222"
+            fontsize=12, fontweight="bold", color="#008EAA"
         )
 
     if footer:
@@ -123,7 +123,7 @@ def render_gdf(gdf, marqueurs, marqueurs_etab, couleur, couleur_contour,
         fig.text(
             0.5, 0.01, footer,
             ha="center", va="bottom",
-            fontsize=8, color="#444444", style="italic"
+            fontsize=8, color="#E35205", style="italic"
         )
 
     buf = io.BytesIO()
