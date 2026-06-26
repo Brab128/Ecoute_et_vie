@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Écoute et Vie — Générateur de cartes</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #008EAA 0%, #005f75 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.5px; }
+    header p { font-size: 0.85rem; opacity: 0.85; margin-top: 0.2rem; }
+
+    .container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; margin-bottom: -1px; }
+    .tab {
+      padding: 0.6rem 1.1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid #cbd5e0;
+      background: #e2e8f0;
+      color: #718096;
+      border-radius: 6px 6px 0 0;
+      transition: background 0.15s;
+    }
+    .tab:not(:first-child) { margin-left: -1px; }
+    .tab.active { background: white; color: #008EAA; border-bottom-color: white; z-index: 1; }
+    .tab:hover:not(.active) { background: #edf2f7; }
+
+    .panel {
+      background: white;
+      border: 1px solid #cbd5e0;
+      border-radius: 0 6px 6px 6px;
+      padding: 1.4rem;
+      display: none;
+    }
+    .panel.active { display: block; }
+
+    /* Form elements */
+    .field { margin-bottom: 1rem; }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #cbd5e0;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      background: #fafafa;
+      color: #2d3748;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #008EAA;
+      box-shadow: 0 0 0 3px rgba(0,142,170,0.12);
+      background: white;
+    }
+    textarea { resize: vertical; font-family: "SF Mono", monospace; font-size: 0.78rem; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+
+    /* Color swatch */
+    .color-field { display: flex; align-items: center; gap: 0.5rem; }
+    .color-field input[type="color"] { width: 36px; height: 32px; padding: 2px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+    .color-field input[type="text"] { flex: 1; }
+
+    /* Toggle */
+    .toggle-row { display: flex; align-items: center; gap: 0.75rem; }
+    .toggle { position: relative; width: 42px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #cbd5e0; border-radius: 22px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: ""; position: absolute;
+      width: 16px; height: 16px;
+      left: 3px; top: 3px;
+      background: white; border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle input:checked + .slider { background: #008EAA; }
+    .toggle input:checked + .slider::before { transform: translateX(20px); }
+
+    /* Section separator */
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #a0aec0;
+      margin: 1.2rem 0 0.8rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    /* Marqueur list */
+    .marqueur-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .marqueur-item {
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+      position: relative;
+    }
+    .marqueur-item .remove-btn {
+      position: absolute; top: 0.5rem; right: 0.5rem;
+      background: none; border: none; cursor: pointer;
+      color: #a0aec0; font-size: 1rem; line-height: 1;
+      padding: 0;
+    }
+    .marqueur-item .remove-btn:hover { color: #e53e3e; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.82rem; font-weight: 600;
+      border-radius: 6px; border: none; cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: #008EAA; color: white; }
+    .btn-primary:hover { background: #007a94; }
+    .btn-secondary { background: #e2e8f0; color: #4a5568; }
+    .btn-secondary:hover { background: #cbd5e0; }
+    .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.76rem; }
+    .btn-full { width: 100%; justify-content: center; margin-top: 1.2rem; padding: 0.65rem; font-size: 0.9rem; }
+
+    /* Result panel */
+    .result-panel {
+      background: white;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      overflow: hidden;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+    }
+    .result-header {
+      background: #f7fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0.75rem 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .result-header h2 { font-size: 0.9rem; font-weight: 700; color: #4a5568; }
+    .result-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      min-height: 280px;
+    }
+    .result-body img {
+      max-width: 100%;
+      border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+    .placeholder {
+      text-align: center;
+      color: #a0aec0;
+    }
+    .placeholder svg { margin-bottom: 0.75rem; }
+    .placeholder p { font-size: 0.85rem; }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      width: 40px; height: 40px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #008EAA;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    .error-msg {
+      display: none;
+      background: #fff5f5;
+      border: 1px solid #fed7d7;
+      color: #c53030;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+      margin-top: 0.75rem;
+    }
+
+    /* Status badge */
+    .badge {
+      font-size: 0.7rem; font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-success { background: #c6f6d5; color: #276749; }
+    .badge-error { background: #fed7d7; color: #9b2c2c; }
+    .badge-loading { background: #bee3f8; color: #2b6cb0; }
+
+    /* Download link */
+    #download-link {
+      display: none;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: #008EAA;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    #download-link:hover { text-decoration: underline; }
+
+    /* Server URL bar */
+    .server-bar {
+      background: white;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      padding: 0.8rem 1.2rem;
+      margin-bottom: 1rem;
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .server-bar label { font-size: 0.8rem; font-weight: 700; color: #4a5568; white-space: nowrap; }
+    .server-bar input { flex: 1; }
+    #server-status { font-size: 0.75rem; color: #a0aec0; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Écoute et Vie — Générateur de cartes</h1>
+    <p>Interface de test pour l'API GeoPandas / FastAPI</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Server URL bar -->
+  <div class="server-bar">
+    <label>Serveur API</label>
+    <input type="text" id="server-url" value="http://localhost:8000" placeholder="http://localhost:8000" />
+    <span id="server-status">—</span>
+  </div>
+
+  <!-- Left: Forms -->
+  <div>
+    <div class="tabs">
+      <div class="tab active" data-tab="dep">Département</div>
+      <div class="tab" data-tab="geojson">GeoJSON</div>
+      <div class="tab" data-tab="entites">Entités</div>
+    </div>
+
+    <!-- ── TAB 1 : Département ── -->
+    <div class="panel active" id="tab-dep">
+      <div class="field">
+        <label>Code INSEE du département</label>
+        <input type="text" id="dep-code" value="69" placeholder="ex: 75, 69, 13, 974…" maxlength="3" />
+      </div>
+      <div class="section-title">Apparence</div>
+      <div class="row">
+        <div class="field">
+          <label>Couleur de remplissage</label>
+          <div class="color-field">
+            <input type="color" id="dep-couleur-picker" value="#4A90D9" />
+            <input type="text" id="dep-couleur" value="#4A90D9" maxlength="9" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Couleur contour</label>
+          <div class="color-field">
+            <input type="color" id="dep-contour-picker" value="#000000" />
+            <input type="text" id="dep-contour" value="black" maxlength="20" />
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Épaisseur contour</label>
+          <input type="number" id="dep-epaisseur" value="1.0" step="0.5" min="0.1" max="5" />
+        </div>
+        <div class="field">
+          <label>Fond</label>
+          <div class="color-field">
+            <input type="color" id="dep-fond-picker" value="#ffffff" />
+            <input type="text" id="dep-fond" value="white" maxlength="20" />
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Remplissage</label>
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="dep-remplissage" checked />
+            <span class="slider"></span>
+          </label>
+          <span style="font-size:0.82rem; color:#4a5568;">Activer le remplissage</span>
+        </div>
+      </div>
+      <div id="dep-error" class="error-msg"></div>
+      <button class="btn btn-primary btn-full" onclick="genererDep()">
+        ▶ Générer la carte
+      </button>
+    </div>
+
+    <!-- ── TAB 2 : GeoJSON ── -->
+    <div class="panel" id="tab-geojson">
+      <div class="field">
+        <label>GeoJSON</label>
+        <textarea id="geojson-data" rows="8" placeholder='{"type":"FeatureCollection","features":[...]}'></textarea>
+      </div>
+      <div class="section-title">Apparence</div>
+      <div class="row">
+        <div class="field">
+          <label>Couleur remplissage</label>
+          <div class="color-field">
+            <input type="color" id="gj-couleur-picker" value="#4A90D9" />
+            <input type="text" id="gj-couleur" value="#4A90D9" maxlength="9" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Couleur contour</label>
+          <div class="color-field">
+            <input type="color" id="gj-contour-picker" value="#000000" />
+            <input type="text" id="gj-contour" value="black" maxlength="20" />
+          </div>
+        </div>
+      </div>
+      <div class="row-3">
+        <div class="field">
+          <label>Épaisseur</label>
+          <input type="number" id="gj-epaisseur" value="1.0" step="0.5" min="0.1" max="5" />
+        </div>
+        <div class="field">
+          <label>Largeur (po)</label>
+          <input type="number" id="gj-largeur" value="6" min="2" max="20" />
+        </div>
+        <div class="field">
+          <label>Hauteur (po)</label>
+          <input type="number" id="gj-hauteur" value="6" min="2" max="20" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>DPI</label>
+          <input type="number" id="gj-dpi" value="150" min="72" max="300" step="10" />
+        </div>
+        <div class="field">
+          <label>Fond</label>
+          <div class="color-field">
+            <input type="color" id="gj-fond-picker" value="#ffffff" />
+            <input type="text" id="gj-fond" value="white" maxlength="20" />
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Remplissage</label>
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="gj-remplissage" checked />
+            <span class="slider"></span>
+          </label>
+          <span style="font-size:0.82rem; color:#4a5568;">Activer le remplissage</span>
+        </div>
+      </div>
+      <div class="section-title">Métadonnées</div>
+      <div class="row">
+        <div class="field">
+          <label>Titre</label>
+          <input type="text" id="gj-title" placeholder="Titre de la carte" />
+        </div>
+        <div class="field">
+          <label>Entreprise</label>
+          <input type="text" id="gj-entreprise" placeholder="Écoute et Vie" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Nom</label>
+          <input type="text" id="gj-nom" placeholder="Nom du contact" />
+        </div>
+        <div class="field">
+          <label>Date</label>
+          <input type="text" id="gj-date" placeholder="Juin 2026" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Nb habitants</label>
+        <input type="number" id="gj-habitants" value="0" min="0" />
+      </div>
+      <div class="section-title">Marqueurs</div>
+      <div id="gj-marqueurs-list" class="marqueur-list"></div>
+      <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-secondary btn-sm" onclick="ajouterMarqueur('gj','std')">+ Marqueur ●</button>
+        <button class="btn btn-secondary btn-sm" onclick="ajouterMarqueur('gj','etab')">+ Établissement ▲</button>
+      </div>
+      <div id="gj-error" class="error-msg"></div>
+      <button class="btn btn-primary btn-full" onclick="genererGeoJSON()">
+        ▶ Générer la carte
+      </button>
+    </div>
+
+    <!-- ── TAB 3 : Entités ── -->
+    <div class="panel" id="tab-entites">
+      <div class="section-title">Entités (code INSEE + contour GeoJSON)</div>
+      <div id="entites-list" class="marqueur-list"></div>
+      <button class="btn btn-secondary btn-sm" onclick="ajouterEntite()" style="margin-bottom:0.5rem;">+ Ajouter une entité</button>
+
+      <div class="section-title">Apparence</div>
+      <div class="row">
+        <div class="field">
+          <label>Couleur remplissage</label>
+          <div class="color-field">
+            <input type="color" id="ent-couleur-picker" value="#4A90D9" />
+            <input type="text" id="ent-couleur" value="#4A90D9" maxlength="9" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Couleur contour</label>
+          <div class="color-field">
+            <input type="color" id="ent-contour-picker" value="#000000" />
+            <input type="text" id="ent-contour" value="black" maxlength="20" />
+          </div>
+        </div>
+      </div>
+      <div class="row-3">
+        <div class="field">
+          <label>Épaisseur</label>
+          <input type="number" id="ent-epaisseur" value="1.0" step="0.5" min="0.1" max="5" />
+        </div>
+        <div class="field">
+          <label>Largeur (po)</label>
+          <input type="number" id="ent-largeur" value="6" min="2" max="20" />
+        </div>
+        <div class="field">
+          <label>Hauteur (po)</label>
+          <input type="number" id="ent-hauteur" value="6" min="2" max="20" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>DPI</label>
+          <input type="number" id="ent-dpi" value="150" min="72" max="300" step="10" />
+        </div>
+        <div class="field">
+          <label>Fond</label>
+          <div class="color-field">
+            <input type="color" id="ent-fond-picker" value="#ffffff" />
+            <input type="text" id="ent-fond" value="white" maxlength="20" />
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Remplissage</label>
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="ent-remplissage" checked />
+            <span class="slider"></span>
+          </label>
+          <span style="font-size:0.82rem; color:#4a5568;">Activer le remplissage</span>
+        </div>
+      </div>
+      <div class="section-title">Métadonnées</div>
+      <div class="row">
+        <div class="field">
+          <label>Titre</label>
+          <input type="text" id="ent-title" placeholder="Titre de la carte" />
+        </div>
+        <div class="field">
+          <label>Entreprise</label>
+          <input type="text" id="ent-entreprise" placeholder="Écoute et Vie" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Nom</label>
+          <input type="text" id="ent-nom" placeholder="Nom du contact" />
+        </div>
+        <div class="field">
+          <label>Date</label>
+          <input type="text" id="ent-date" placeholder="Juin 2026" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Nb habitants</label>
+        <input type="number" id="ent-habitants" value="0" min="0" />
+      </div>
+      <div class="section-title">Marqueurs</div>
+      <div id="ent-marqueurs-list" class="marqueur-list"></div>
+      <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-secondary btn-sm" onclick="ajouterMarqueur('ent','std')">+ Marqueur ●</button>
+        <button class="btn btn-secondary btn-sm" onclick="ajouterMarqueur('ent','etab')">+ Établissement ▲</button>
+      </div>
+      <div id="ent-error" class="error-msg"></div>
+      <button class="btn btn-primary btn-full" onclick="genererEntites()">
+        ▶ Générer la carte
+      </button>
+    </div>
+  </div>
+
+  <!-- Right: Result -->
+  <div class="result-panel">
+    <div class="result-header">
+      <h2>Résultat</h2>
+      <div style="display:flex; align-items:center; gap:0.8rem;">
+        <span id="status-badge"></span>
+        <a id="download-link" download="carte.png">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Télécharger
+        </a>
+      </div>
+    </div>
+    <div class="result-body" id="result-body">
+      <div class="placeholder" id="placeholder">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M3 9h18M9 21V9"/>
+        </svg>
+        <p>La carte générée s'affichera ici</p>
+        <p style="margin-top:0.3rem; font-size:0.75rem;">Remplissez le formulaire et cliquez sur Générer</p>
+      </div>
+      <div class="spinner" id="spinner"></div>
+      <img id="result-img" style="display:none;" alt="Carte générée" />
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── Server URL sync ──
+  const serverInput = document.getElementById('server-url');
+  const serverStatus = document.getElementById('server-status');
+
+  function getServer() { return serverInput.value.replace(/\/$/, ''); }
+
+  // ── Tab switching ──
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Color picker sync ──
+  function syncColor(pickerId, textId) {
+    const picker = document.getElementById(pickerId);
+    const text = document.getElementById(textId);
+    picker.addEventListener('input', () => { text.value = picker.value; });
+    text.addEventListener('input', () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(text.value)) picker.value = text.value;
+    });
+  }
+  syncColor('dep-couleur-picker', 'dep-couleur');
+  syncColor('dep-contour-picker', 'dep-contour');
+  syncColor('dep-fond-picker', 'dep-fond');
+  syncColor('gj-couleur-picker', 'gj-couleur');
+  syncColor('gj-contour-picker', 'gj-contour');
+  syncColor('gj-fond-picker', 'gj-fond');
+  syncColor('ent-couleur-picker', 'ent-couleur');
+  syncColor('ent-contour-picker', 'ent-contour');
+  syncColor('ent-fond-picker', 'ent-fond');
+
+  // ── Result display helpers ──
+  function showSpinner() {
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('result-img').style.display = 'none';
+    document.getElementById('download-link').style.display = 'none';
+    setStatus('loading', 'Génération…');
+  }
+
+  function showImage(blob) {
+    const url = URL.createObjectURL(blob);
+    const img = document.getElementById('result-img');
+    img.src = url;
+    img.style.display = 'block';
+    document.getElementById('spinner').style.display = 'none';
+    const dl = document.getElementById('download-link');
+    dl.href = url;
+    dl.style.display = 'flex';
+    setStatus('success', 'OK');
+  }
+
+  function showError(msg) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('placeholder').style.display = 'block';
+    setStatus('error', 'Erreur');
+    return msg;
+  }
+
+  function setStatus(type, text) {
+    const badge = document.getElementById('status-badge');
+    badge.className = 'badge badge-' + type;
+    badge.textContent = text;
+  }
+
+  function showFieldError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  function clearFieldError(id) {
+    const el = document.getElementById(id);
+    el.style.display = 'none';
+    el.textContent = '';
+  }
+
+  // ── Generic fetch ──
+  async function fetchCarte(method, url, body, errorId) {
+    clearFieldError(errorId);
+    showSpinner();
+    try {
+      const opts = { method };
+      if (body !== null) {
+        opts.headers = { 'Content-Type': 'application/json' };
+        opts.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, opts);
+      if (!res.ok) {
+        const txt = await res.text();
+        let detail = txt;
+        try { detail = JSON.parse(txt)?.detail ?? txt; } catch (_) {}
+        showFieldError(errorId, `Erreur ${res.status} : ${detail}`);
+        showError();
+        return;
+      }
+      const blob = await res.blob();
+      showImage(blob);
+    } catch (e) {
+      showFieldError(errorId, `Impossible de joindre le serveur : ${e.message}`);
+      showError();
+    }
+  }
+
+  // ── Endpoint 1 : Département (GET) ──
+  function genererDep() {
+    const code = document.getElementById('dep-code').value.trim();
+    if (!code) { showFieldError('dep-error', 'Veuillez saisir un code INSEE.'); return; }
+    const params = new URLSearchParams({
+      couleur: document.getElementById('dep-couleur').value,
+      couleur_contour: document.getElementById('dep-contour').value,
+      epaisseur_contour: document.getElementById('dep-epaisseur').value,
+      remplissage: document.getElementById('dep-remplissage').checked,
+      fond: document.getElementById('dep-fond').value,
+    });
+    fetchCarte('GET', `${getServer()}/carte/${code}?${params}`, null, 'dep-error');
+  }
+
+  // ── Endpoint 2 : GeoJSON (POST) ──
+  function genererGeoJSON() {
+    let geojson;
+    const raw = document.getElementById('geojson-data').value.trim();
+    if (!raw) { showFieldError('gj-error', 'Veuillez coller un GeoJSON valide.'); return; }
+    try { geojson = JSON.parse(raw); } catch (e) {
+      showFieldError('gj-error', 'JSON invalide : ' + e.message); return;
+    }
+    const body = {
+      geojson,
+      couleur: document.getElementById('gj-couleur').value,
+      couleur_contour: document.getElementById('gj-contour').value,
+      epaisseur_contour: parseFloat(document.getElementById('gj-epaisseur').value),
+      remplissage: document.getElementById('gj-remplissage').checked,
+      fond: document.getElementById('gj-fond').value,
+      largeur: parseInt(document.getElementById('gj-largeur').value),
+      hauteur: parseInt(document.getElementById('gj-hauteur').value),
+      dpi: parseInt(document.getElementById('gj-dpi').value),
+      title: document.getElementById('gj-title').value,
+      nom: document.getElementById('gj-nom').value,
+      entreprise: document.getElementById('gj-entreprise').value,
+      date: document.getElementById('gj-date').value,
+      nb_habitants: parseInt(document.getElementById('gj-habitants').value) || 0,
+      marqueurs: collecterMarqueurs('gj', false),
+      marqueurs_etab: collecterMarqueurs('gj', true),
+    };
+    fetchCarte('POST', `${getServer()}/carte`, body, 'gj-error');
+  }
+
+  // ── Endpoint 3 : Entités (POST) ──
+  function genererEntites() {
+    const entites = collecterEntites();
+    if (!entites) return;
+    const body = {
+      entites,
+      couleur: document.getElementById('ent-couleur').value,
+      couleur_contour: document.getElementById('ent-contour').value,
+      epaisseur_contour: parseFloat(document.getElementById('ent-epaisseur').value),
+      remplissage: document.getElementById('ent-remplissage').checked,
+      fond: document.getElementById('ent-fond').value,
+      largeur: parseInt(document.getElementById('ent-largeur').value),
+      hauteur: parseInt(document.getElementById('ent-hauteur').value),
+      dpi: parseInt(document.getElementById('ent-dpi').value),
+      title: document.getElementById('ent-title').value,
+      nom: document.getElementById('ent-nom').value,
+      entreprise: document.getElementById('ent-entreprise').value,
+      date: document.getElementById('ent-date').value,
+      nb_habitants: parseInt(document.getElementById('ent-habitants').value) || 0,
+      marqueurs: collecterMarqueurs('ent', false),
+      marqueurs_etab: collecterMarqueurs('ent', true),
+    };
+    fetchCarte('POST', `${getServer()}/carte/entites`, body, 'ent-error');
+  }
+
+  // ── Marqueurs dynamic list ──
+  let marqueurCounters = {};
+
+  function ajouterMarqueur(prefix, type) {
+    const key = prefix + '_' + type;
+    marqueurCounters[key] = (marqueurCounters[key] || 0) + 1;
+    const id = key + '_' + marqueurCounters[key];
+    const listId = prefix + '-marqueurs-list';
+    const isEtab = type === 'etab';
+    const icone = isEtab ? '▲' : '●';
+    const couleur = isEtab ? 'red' : 'black';
+
+    const div = document.createElement('div');
+    div.className = 'marqueur-item';
+    div.dataset.type = type;
+    div.dataset.id = id;
+    div.innerHTML = `
+      <button class="remove-btn" onclick="this.parentElement.remove()" title="Supprimer">✕</button>
+      <div class="row-3" style="margin-bottom:0.4rem;">
+        <div class="field" style="margin:0;">
+          <label>Longitude</label>
+          <input type="number" step="any" placeholder="2.3488" class="m-lng" />
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Latitude</label>
+          <input type="number" step="any" placeholder="48.8534" class="m-lat" />
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Icône</label>
+          <input type="text" value="${icone}" maxlength="4" class="m-icone" />
+        </div>
+      </div>
+      <div class="row" style="margin:0;">
+        <div class="field" style="margin:0;">
+          <label>Texte</label>
+          <input type="text" placeholder="Label…" class="m-texte" />
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Couleur</label>
+          <input type="text" value="${couleur}" placeholder="black" class="m-couleur" maxlength="20" />
+        </div>
+      </div>
+    `;
+    document.getElementById(listId).appendChild(div);
+  }
+
+  function collecterMarqueurs(prefix, etab) {
+    const type = etab ? 'etab' : 'std';
+    const items = document.querySelectorAll(`#${prefix}-marqueurs-list .marqueur-item[data-type="${type}"]`);
+    return Array.from(items).map(el => ({
+      longitude: parseFloat(el.querySelector('.m-lng').value) || 0,
+      latitude: parseFloat(el.querySelector('.m-lat').value) || 0,
+      icone: el.querySelector('.m-icone').value || (etab ? '▲' : '●'),
+      texte: el.querySelector('.m-texte').value,
+      couleur_texte: el.querySelector('.m-couleur').value || (etab ? 'red' : 'black'),
+      taille: 16,
+    }));
+  }
+
+  // ── Entités dynamic list ──
+  let entiteCounter = 0;
+
+  function ajouterEntite() {
+    entiteCounter++;
+    const id = 'entite_' + entiteCounter;
+    const div = document.createElement('div');
+    div.className = 'marqueur-item';
+    div.dataset.id = id;
+    div.innerHTML = `
+      <button class="remove-btn" onclick="this.parentElement.remove()" title="Supprimer">✕</button>
+      <div class="row" style="margin-bottom:0.4rem;">
+        <div class="field" style="margin:0;">
+          <label>Code INSEE</label>
+          <input type="text" placeholder="69123" maxlength="10" class="e-code" />
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Nom</label>
+          <input type="text" placeholder="Nom de la zone" class="e-nom" />
+        </div>
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Contour (GeoJSON geometry)</label>
+        <textarea rows="4" placeholder='{"type":"Polygon","coordinates":[...]}' class="e-contour"></textarea>
+      </div>
+    `;
+    document.getElementById('entites-list').appendChild(div);
+  }
+
+  function collecterEntites() {
+    const items = document.querySelectorAll('#entites-list .marqueur-item');
+    if (items.length === 0) {
+      showFieldError('ent-error', 'Ajoutez au moins une entité.');
+      return null;
+    }
+    const result = [];
+    for (const el of items) {
+      const code = el.querySelector('.e-code').value.trim();
+      const nom = el.querySelector('.e-nom').value.trim();
+      const rawContour = el.querySelector('.e-contour').value.trim();
+      if (!code || !rawContour) {
+        showFieldError('ent-error', 'Chaque entité doit avoir un code et un contour.');
+        return null;
+      }
+      let contour;
+      try { contour = JSON.parse(rawContour); } catch (e) {
+        showFieldError('ent-error', `Contour JSON invalide pour "${code}" : ${e.message}`);
+        return null;
+      }
+      result.push({ code, nom, contour });
+    }
+    return result;
+  }
+
+  // ── Prefill GeoJSON example ──
+  document.getElementById('geojson-data').value = JSON.stringify({
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": { "nom": "Lyon" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [4.77, 45.71], [4.77, 45.81], [4.90, 45.81],
+            [4.90, 45.71], [4.77, 45.71]
+          ]]
+        }
+      }
+    ]
+  }, null, 2);
+</script>
+</body>
+</html>
